@@ -1,0 +1,57 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - shell: bash
+      - uses: actions/checkout@v2
+
+      # Runs a single command using the runners shell
+      - name: Setup composer
+        run:  |
+          sudo curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          cd getvois
+          composer install --optimize-autoloader --no-dev
+          php artisan config:cache
+          php artisan route:cache
+          curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
+          sudo apt install -y nodejs
+          npm i -g yarn
+          yarn
+          yarn prod
+
+      # Runs a set of commands using the runners shell
+      - name: Upload files to server
+        with:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: |
+          echo $PRIVATE_KEY > ~/.ssh/id_rsa_server
+          chmod 400 ~/.ssh/id_rsa_server
+          cat > ~/.ssh/config <<EOF
+          Host server
+            User ${{ secrets.SSH_USERNAME }}
+            HostName ${{ secrets.SSH_HOSTNAME }}
+            IdentityFile ~/.ssh/id_rsa_server
+          EOF
+
+          sudo apt install -y rsync
+          rsync -a . server:/home/api/www/
+
+
+
